@@ -1,0 +1,261 @@
+<!DOCTYPE html>
+<html lang="pl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>apt</title>
+    <link rel="icon" type="image/png" href="apt.png">
+    <link rel="apple-touch-icon" href="apt.png">
+    <link rel="manifest" href='data:application/manifest+json,{"name":"apt","short_name":"apt","start_url":".","display":"standalone","background_color":"#000000","theme_color":"#000000"}'>
+
+    <script src="https://maps.googleapis.com/maps/api/js?key=AIzaSyAMdnd3kjfS9rZJodhNclNPffa1Vn2DV5I&libraries=geometry,directions"></script>
+
+    <style>
+        :root { --bg: #000; --card: #1e293b; --blue: #1a73e8; --green: #1ed760; --red: #d93025; --gold: #fbc02d; --nav-green: #006e4a; }
+        
+        body { font-family: sans-serif; background: var(--bg); color: white; margin: 0; padding: 10px; display: flex; flex-direction: column; min-height: 100vh; box-sizing: border-box; overflow-y: auto; position: relative; }
+        
+        #splash { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: #000; z-index: 999; display: flex; flex-direction: column; align-items: center; justify-content: center; }
+        #splash img { width: 180px; height: auto; margin-bottom: 50px; border-radius: 20px; }
+        .btn-start { background: transparent; color: var(--blue); border: 3px solid var(--blue); padding: 20px 80px; border-radius: 50px; font-size: 1.8rem; font-weight: 900; cursor: pointer; }
+
+        .btn-side { position: absolute; right: 15px; width: 55px; height: 55px; border: 2px solid white; border-radius: 50%; font-size: 30px; font-weight: bold; display: none; align-items: center; justify-content: center; z-index: 1000; cursor: pointer; color: white; }
+        #refresh-btn { top: 15px; background: var(--blue); }
+        #mute-btn { top: 85px; background: #475569; }
+
+        .nav-label { font-size: 0.9rem; color: var(--blue); font-weight: 900; margin: 5px 0; text-transform: uppercase; }
+        .nav-row { display: flex; gap: 10px; overflow-x: auto; padding-bottom: 10px; flex-shrink: 0; margin-right: 75px; scroll-behavior: smooth; }
+        .nav-row::-webkit-scrollbar { display: none; }
+        .btn-s { background: var(--card); color: #fff; border: 1px solid #444; padding: 12px 18px; border-radius: 10px; font-weight: bold; font-size: 1rem; min-width: 85px; white-space: nowrap; }
+        .btn-s.active { background: var(--blue); color: white; border-color: white; box-shadow: 0 0 15px var(--blue); }
+
+        /* WYŚWIETLACZ MANEWRÓW */
+        .display { background: var(--card); border: 4px solid #334155; border-radius: 30px; padding: 15px; text-align: center; margin-bottom: 10px; flex-shrink: 0; display: flex; flex-direction: column; justify-content: center; position: relative; min-height: 280px; }
+        
+        #maneuver-container { height: 110px; display: flex; justify-content: center; align-items: center; margin-bottom: 10px; }
+        .man-box { width: 100px; height: 100px; background: var(--nav-green); border-radius: 20px; display: flex; align-items: center; justify-content: center; padding: 10px; border: 2px solid rgba(255,255,255,0.2); }
+        .man-box svg { width: 80px; height: 80px; fill: white; }
+
+        #stop-name-container { width: 100%; display: flex; justify-content: center; align-items: center; white-space: nowrap; }
+        #stop-name { color: var(--blue); font-weight: 900; line-height: 1.1; letter-spacing: -1px; }
+
+        #timer-row { display: flex; align-items: center; justify-content: center; gap: 20px; margin-top: 10px; }
+        #timer { font-size: 4.5rem; font-weight: 900; color: var(--green); }
+        #eta-container { display: flex; flex-direction: column; align-items: center; background: rgba(0,0,0,0.4); padding: 10px 20px; border-radius: 15px; border: 1px solid #444; }
+        #eta-timer { font-size: 2.5rem; font-weight: 900; color: var(--blue); }
+        .eta-label { font-size: 0.8rem; color: #aaa; text-transform: uppercase; font-weight: 900; }
+
+        /* PANEL INFO: ZEGAR (3/4) I PRĘDKOŚĆ (1/4) */
+        #info-panel { display: flex; gap: 10px; height: 100px; margin-bottom: 10px; flex-shrink: 0; }
+        #clock-box { flex: 3; background: var(--card); border: 3px solid var(--blue); border-radius: 20px; display: flex; align-items: center; justify-content: center; font-size: 3.2rem; font-weight: 900; color: #fff; letter-spacing: 2px; }
+        #speed-box { flex: 1; background: var(--card); border: 3px solid var(--gold); border-radius: 20px; display: flex; flex-direction: column; align-items: center; justify-content: center; }
+        #speed-val { font-size: 3rem; font-weight: 900; color: var(--gold); line-height: 1; }
+        .speed-unit { font-size: 0.8rem; color: #aaa; text-transform: uppercase; font-weight: bold; }
+
+        #google-maps-btn { background: var(--blue); color: white; border: 2px solid white; border-radius: 15px; width: 100%; height: 70px; font-size: 1.5rem; font-weight: 900; text-transform: uppercase; margin-bottom: 15px; cursor: pointer; flex-shrink: 0; }
+
+        .footer { display: grid; grid-template-columns: 1fr 1fr; gap: 15px; height: 85px; margin-bottom: 110px; flex-shrink: 0; }
+        .btn-nav { background: var(--card); color: var(--blue); border: 3px solid var(--blue); border-radius: 15px; font-size: 1.5rem; font-weight: bold; text-transform: uppercase; }
+        .btn-finish { background: var(--red) !important; color: white !important; border-color: white !important; box-shadow: 0 0 20px var(--red); }
+    </style>
+</head>
+<body onclick="forceFullScreen()">
+
+    <div id="splash">
+        <img src="apt.png" alt="apt">
+        <button class="btn-start" onclick="startApp()">START</button>
+    </div>
+
+    <button id="refresh-btn" class="btn-side" onclick="location.reload()">↻</button>
+    <button id="mute-btn" class="btn-side" onclick="toggleMute()">🔈</button>
+
+    <div class="nav-label">🔵 DO PRACY (apt):</div>
+    <div id="work-bar" class="nav-row"></div>
+    <div class="nav-label">🔵 POWROTY (apt):</div>
+    <div id="return-bar" class="nav-row"></div>
+
+    <div class="display">
+        <div id="maneuver-container">
+            <div class="man-box" id="man-box-inner">
+                </div>
+        </div>
+        <div id="stop-name-container">
+            <div id="stop-name">ŁADOWANIE...</div>
+        </div>
+        <div id="timer-row">
+            <div id="timer">--</div>
+            <div id="eta-container">
+                <span class="eta-label">Dojazd za</span>
+                <div id="eta-timer">--</div>
+            </div>
+        </div>
+    </div>
+
+    <div id="info-panel">
+        <div id="clock-box">00:00:00</div>
+        <div id="speed-box">
+            <div id="speed-val">0</div>
+            <div class="speed-unit">km/h</div>
+        </div>
+    </div>
+
+    <button id="google-maps-btn" onclick="openFullGoogleMaps()">
+        🗺️ MAPY GOOGLE (TRASA)
+    </button>
+
+    <div class="footer">
+        <button class="btn-nav" onclick="move(-1)">Wstecz</button>
+        <button id="next-btn" class="btn-nav" onclick="handleStep()">Następny</button>
+    </div>
+
+<script>
+    // --- WSPÓŁRZĘDNE APT KRĘŻOŁY ---
+    const wRAC = { "la": 51.932917, "ln": 15.549861, "n": "RACULKA" };
+    const wWAZ = { "la": 51.946250, "ln": 15.519667, "n": "STASZICA (Wazów)" };
+    const wCEN = { "la": 51.942917, "ln": 15.507750, "n": "ZG CENTRUM" };
+    const wSOB = { "la": 51.961472, "ln": 15.499083, "n": "TRASA PÓŁNOCNA (Sobk.)" };
+    const wSUL = { "la": 52.083333, "ln": 15.626194, "n": "SULECHÓW PCK" };
+    const wB1 = { "la": 52.090972, "ln": 15.649444, "n": "BRAMA 1" };
+    const wB2 = { "la": 52.094611, "ln": 15.658056, "n": "BRAMA 2" };
+    const locCRS = { "la": 51.956111, "ln": 15.528250, "n": "PARKING CRS" };
+
+    const h0600 = [{...wRAC, t:"04:47"}, {...wWAZ, t:"04:55"}, {...wCEN, t:"04:58"}, {...wSOB, t:"05:05"}, {...wSUL, t:"05:25"}, {...wB1, t:"---"}, {...wB2, t:"06:00"}];
+    const h1000 = [{...wRAC, t:"08:47"}, {...wWAZ, t:"08:55"}, {...wCEN, t:"08:58"}, {...wSOB, t:"09:05"}, {...wSUL, t:"09:25"}, {...wB1, t:"---"}, {...wB2, t:"10:00"}];
+    const h1200 = [{...wRAC, t:"10:40"}, {...wWAZ, t:"10:50"}, {...wCEN, t:"10:53"}, {...wSOB, t:"11:00"}, {...wSUL, t:"11:25"}, {...wB1, t:"---"}, {...wB2, t:"12:00"}];
+    const h1400 = [{...wRAC, t:"12:35"}, {...wWAZ, t:"12:45"}, {...wCEN, t:"12:48"}, {...wSOB, t:"13:00"}, {...wSUL, t:"13:25"}, {...wB1, t:"---"}, {...wB2, t:"14:00"}];
+    const h1600 = [{...wRAC, t:"14:35"}, {...wWAZ, t:"14:45"}, {...wCEN, t:"14:48"}, {...wSOB, t:"15:00"}, {...wSUL, t:"15:25"}, {...wB1, t:"---"}, {...wB2, t:"16:00"}];
+    const h1800 = [{...wRAC, t:"16:35"}, {...wWAZ, t:"16:45"}, {...wCEN, t:"16:48"}, {...wSOB, t:"17:00"}, {...wSUL, t:"17:25"}, {...wB1, t:"---"}, {...wB2, t:"18:00"}];
+
+    function createReturn(time) { return [{...wB2, n:"POWRÓT: "+time, t:time}, {...wB1, t:"---"}, {...wSUL, n:"SULECHÓW PCK"}, {...wSOB, n:"TRASA PÓŁNOCNA (Sobk.)"}, {...wCEN, n:"ZG CENTRUM"}, {...wWAZ, n:"STASZICA (Wazów)"}, {...wRAC, n:"RACULKA"}]; }
+
+    var schedules = {
+        "06:00": h0600, "10:00": h1000, "12:00": h1200, "14:00": h1400, "16:00": h1600, "18:00": h1800,
+        "10:15": createReturn("10:15"), "12:15": createReturn("12:15"), "14:15": createReturn("14:15"), 
+        "16:15": createReturn("16:15"), "18:15": createReturn("18:15"), "20:15": createReturn("20:15"), "22:15": createReturn("22:15")
+    };
+
+    var curr = "06:00", idx = 0, userPos, liveDelay = 0, currentKmh = 0, isMuted = false, specialTarget = null, isFirstCalc = true;
+    var ds = new google.maps.DirectionsService();
+
+    // --- POPRAWIONY GENERATOR IKON Z DETEKCJĄ TEKSTU ---
+    function updateManeuver(step) {
+        const box = document.getElementById('man-box-inner');
+        let man = step.maneuver || "";
+        let text = (step.instructions || "").toLowerCase();
+        
+        let svgPath = "";
+        const b = '<svg viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">';
+
+        // Priorytet 1: Rondo
+        if (man.includes('roundabout') || text.includes('rondo') || text.includes('zjazd')) {
+            svgPath = b + '<circle cx="12" cy="12" r="7"/><polyline points="12 5 15 8 12 11"/><path d="M12 2v3M12 19v3"/></svg>';
+        } 
+        // Priorytet 2: Lewo
+        else if (man.includes('left') || text.includes('lewo')) {
+            svgPath = b + '<polyline points="9 14 4 9 9 4"/><path d="M20 20v-7a4 4 0 0 0-4-4H4"/></svg>';
+        } 
+        // Priorytet 3: Prawo
+        else if (man.includes('right') || text.includes('prawo')) {
+            svgPath = b + '<polyline points="15 14 20 9 15 4"/><path d="M4 20v-7a4 4 0 0 1 4-4h12"/></svg>';
+        } 
+        // Priorytet 4: Zawracanie
+        else if (man.includes('uturn') || text.includes('zawróć')) {
+            svgPath = b + '<path d="M8 18V9a4 4 0 0 1 8 0v9"/><polyline points="4 14 8 18 12 14"/></svg>';
+        }
+        // Domyślnie: Prosto
+        else {
+            svgPath = b + '<line x1="12" y1="19" x2="12" y2="5"/><polyline points="5 12 12 5 19 12"/></svg>';
+        }
+        box.innerHTML = svgPath;
+    }
+
+    function forceFullScreen() { if (!document.fullscreenElement) document.documentElement.requestFullscreen().catch(()=>{}); }
+    function adjustFontSize() { const container = document.getElementById('stop-name-container'); const text = document.getElementById('stop-name'); let fontSize = 50; text.style.fontSize = fontSize + "px"; while (text.offsetWidth < container.offsetWidth - 20 && fontSize < 80) { fontSize++; text.style.fontSize = fontSize + "px"; } while (text.offsetWidth > container.offsetWidth - 10 && fontSize > 15) { fontSize--; text.style.fontSize = fontSize + "px"; } }
+    function updateClock() { const now = new Date(); document.getElementById('clock-box').innerText = now.getHours().toString().padStart(2, '0') + ":" + now.getMinutes().toString().padStart(2, '0') + ":" + now.getSeconds().toString().padStart(2, '0'); }
+    function toggleMute() { isMuted = !isMuted; document.getElementById('mute-btn').innerText = isMuted ? "🔇" : "🔈"; }
+
+    function startApp() { autoSelectKursAndStop(); document.getElementById('splash').style.display = 'none'; document.getElementById('refresh-btn').style.display = 'flex'; document.getElementById('mute-btn').style.display = 'flex'; renderNav(); initGPS(); setInterval(calc, 60000); setInterval(refresh, 1000); setInterval(updateClock, 1000); }
+
+    function initGPS() { if (navigator.geolocation) { navigator.geolocation.watchPosition(p => { userPos = { lat: p.coords.latitude, lng: p.coords.longitude }; currentKmh = (p.coords.speed && p.coords.speed > 0) ? Math.round(p.coords.speed * 3.6) : 0; document.getElementById('speed-val').innerText = currentKmh; if (isFirstCalc) { calc(); isFirstCalc = false; } checkAutoArrival(); }, null, { enableHighAccuracy: true }); } }
+
+    function openFullGoogleMaps() {
+        if (!userPos) { alert("Brak GPS"); return; }
+        let stops = schedules[curr], origin = `${userPos.lat},${userPos.lng}`, dest, waypoints = [];
+        if (specialTarget) { dest = `${specialTarget.la},${specialTarget.ln}`; } else {
+            dest = `${stops[stops.length - 1].la},${stops[stops.length - 1].ln}`;
+            for (let i = idx; i < stops.length - 1; i++) { waypoints.push(`${stops[i].la},${stops[i].ln}`); }
+        }
+        window.open(`https://www.google.com/maps/dir/?api=1&origin=${origin}&destination=${dest}&waypoints=${waypoints.join('|')}&travelmode=driving`, "_blank");
+    }
+
+    function checkAutoArrival() { 
+        if(!userPos) return; let target = specialTarget ? specialTarget : schedules[curr][idx];
+        let dToC = google.maps.geometry.spherical.computeDistanceBetween(new google.maps.LatLng(userPos.lat, userPos.lng), new google.maps.LatLng(target.la, target.ln)); 
+        let skip = (dToC < 75);
+        if (!specialTarget && idx < schedules[curr].length - 1) {
+            let next = schedules[curr][idx + 1];
+            let dToN = google.maps.geometry.spherical.computeDistanceBetween(new google.maps.LatLng(userPos.lat, userPos.lng), new google.maps.LatLng(next.la, next.ln));
+            if (dToC > 200 && dToN < dToC) skip = true;
+        }
+        if (skip) { if (specialTarget) { specialTarget = null; autoSelectKursAndStop(); renderNav(); calc(); } else if (idx < schedules[curr].length - 1) { idx++; calc(); } else { triggerNextKurs(); } } 
+    }
+
+    function triggerNextKurs() { if (curr.endsWith(":15")) { specialTarget = locCRS; } else { autoSelectKursAndStop(); } renderNav(); calc(); }
+
+    function calc() {
+        if(!userPos || !ds) return;
+        let dest = specialTarget ? {lat: specialTarget.la, lng: specialTarget.ln} : {lat: schedules[curr][idx].la, lng: schedules[curr][idx].ln};
+        ds.route({ origin: userPos, destination: dest, travelMode: google.maps.TravelMode.DRIVING }, (res, stat) => { 
+            if(stat === 'OK') { 
+                liveDelay = Math.round((res.routes[0].legs[0].duration.value / 60) * 1.15); 
+                if (res.routes[0].legs[0].steps.length > 0) updateManeuver(res.routes[0].legs[0].steps[0]); 
+            } 
+        });
+    }
+
+    function refresh() {
+        let s = specialTarget ? specialTarget : schedules[curr][idx];
+        const stopNameEl = document.getElementById('stop-name'); const nextBtn = document.getElementById('next-btn');
+        const timePart = (s.t && s.t !== "---") ? "(" + s.t + ") " : "";
+        if (stopNameEl.innerText !== timePart + s.n) { stopNameEl.innerText = timePart + s.n; adjustFontSize(); }
+        if (specialTarget) { nextBtn.innerText = "ZAKOŃCZ"; nextBtn.classList.add('btn-finish'); } else { nextBtn.innerText = "NASTĘPNY"; nextBtn.classList.remove('btn-finish'); }
+        let tEl = document.getElementById('timer'); let etaEl = document.getElementById('eta-timer'); etaEl.innerText = liveDelay > 0 ? liveDelay + "m" : "--";
+        if(s.t && s.t !== "---") { 
+            let p = s.t.split(':'); let tr = new Date(); tr.setHours(p[0], p[1], 0); 
+            let diff = Math.ceil((tr - new Date()) / 60000); 
+            tEl.innerText = diff < 60 && diff > -60 ? diff + " min" : Math.floor(diff/60)+"h "+(Math.abs(diff)%60)+"m";
+            tEl.style.color = (diff < 0) ? "var(--red)" : "var(--green)";
+        } else { tEl.innerText = "--"; }
+    }
+
+    function scrollBarsToActive() {
+        const rows = [document.getElementById('work-bar'), document.getElementById('return-bar')];
+        rows.forEach(row => { const activeBtn = row.querySelector('.btn-s.active'); if (activeBtn) row.scrollTo({ left: activeBtn.offsetLeft - 10, behavior: 'smooth' }); });
+    }
+
+    function renderNav() { 
+        let w = document.getElementById('work-bar'), r = document.getElementById('return-bar'); w.innerHTML = ""; r.innerHTML = ""; 
+        for(let k in schedules) { 
+            let b = document.createElement('button'); b.className = 'btn-s' + (k === curr ? ' active' : ''); b.innerText = k; 
+            b.onclick = (e) => { e.stopPropagation(); curr = k; idx = 0; specialTarget = null; renderNav(); calc(); }; 
+            if (k.endsWith(":15")) r.appendChild(b); else w.appendChild(b); 
+        }
+        setTimeout(scrollBarsToActive, 150);
+    }
+
+    function autoSelectKursAndStop() {
+        const now = new Date(), minNow = now.getHours() * 60 + now.getMinutes(), keys = Object.keys(schedules).sort();
+        let selectedKurs = keys[0];
+        for (let k of keys) { const [h, m] = k.split(':').map(Number); if (minNow < (h * 60 + m + 60)) { selectedKurs = k; break; } }
+        curr = selectedKurs; idx = 0;
+        for (let i = 0; i < schedules[curr].length; i++) {
+            let sT = schedules[curr][i].t;
+            if (sT && sT !== "---") { const [sh, sm] = sT.split(':').map(Number); if ((sh * 60 + sm + 30) > minNow) { idx = i; break; } }
+        }
+    }
+
+    function move(d) { if(schedules[curr] && schedules[curr][idx + d]) { idx += d; specialTarget = null; calc(); } }
+    function handleStep() { if (specialTarget) { specialTarget = null; autoSelectKursAndStop(); renderNav(); calc(); } else if (idx >= (schedules[curr]?.length || 0) - 1) triggerNextKurs(); else { idx++; calc(); } }
+</script>
+</body>
+</html>
